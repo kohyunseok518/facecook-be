@@ -24,6 +24,7 @@ import com.facecook.common.time.EventTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -45,10 +46,10 @@ import java.util.stream.Collectors;
  * 처리는 {@link com.facecook.match.service.MatchService}가 담당한다.</p>
  *
  * <p>잠금 규약: 콕의 상태를 바꾸는 {@link #send}, {@link #cancel}, {@link #reject}는 모두 같은 두 사용자
- * 행을 작은 userId부터 먼저 잠근다. {@link #send}는 행사 한도가 있는 날에 한해 그 다음에 {@link EventLimitLock}을
- * 잠그고, 그 뒤에야 일반 조회를 시작한다({@link EventLimitLock#acquire} 참고). 취소·거절은 사용자 행을 잠근 뒤에야 콕을 잠금 조회로 처음 읽으므로,
- * 같은 사용자 쌍에 대한 명령은 서로 직렬화되고 나중 명령은 먼저 커밋된 최신 상태를 보고 판정한다.
- * 이 순서를 어기면(예: 콕을 먼저 로드) 잠금 전 상태로 판정하거나 교착이 날 수 있다.</p>
+ * 행을 작은 userId부터 먼저 잠근다. {@link #send}는 그 뒤 매칭·중복·개인 한도를 검사하고, 행사 한도가 있는 날에
+ * 한해 검사를 통과한 뒤에만 {@link EventLimitLock}을 잠가 전체 건수 확인과 저장을 한다. 취소·거절은 사용자 행을
+ * 잠근 뒤에야 콕을 잠금 조회로 처음 읽으므로, 같은 사용자 쌍에 대한 명령은 서로 직렬화되고 나중 명령은 먼저
+ * 커밋된 최신 상태를 보고 판정한다. 이 순서를 어기면(예: 콕을 먼저 로드) 잠금 전 상태로 판정하거나 교착이 날 수 있다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -99,10 +100,16 @@ public class CookService {
      * {@code EVENT_LIMIT}(행사 지정일에만 적용). 검사 순서: 자기 자신 → 상대 존재 → 매칭 →
      * 거절한 상대 → 중복 → 개인 한도 → 행사 전체 한도.</p>
      *
+     * <p>READ COMMITTED인 이유: 행사 한도 잠금보다 앞선 검사 조회가 있어서, REPEATABLE-READ라면 그 조회 시점의
+     * 스냅샷으로 전체 건수를 세게 된다. 잠금을 기다리는 동안 다른 전송이 커밋한 콕이 건수에서 빠져 한도를 넘긴다.
+     * READ COMMITTED에서는 문장마다 커밋된 최신 값을 읽으므로 잠금 뒤의 건수가 앞선 전송을 모두 본다. 검사 조회는
+     * 사용자 행 잠금이 같은 쌍의 명령을 직렬화하므로 격리 수준과 관계없이 같은 결과다. 다른 트랜잭션 안에서
+     * 호출되면(테스트) 그 트랜잭션의 격리 수준을 따른다.</p>
+     *
      * @see #cancel(Long, Long)
      * @see #completeMutualMatch(Cook, Cook, LocalDateTime)
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public SendCookResponse send(Long senderId, SendCookRequest request) {
         Long receiverId = request.receiverId();
         if (senderId.equals(receiverId)) {
@@ -111,8 +118,8 @@ public class CookService {
 
         lockUsersAndValidateReceiver(senderId, receiverId);
         LocalDateTime now = EventTime.now(clock);
-        lockEventWideLimitIfApplicable(now.toLocalDate());
         Optional<Cook> reverseCook = validateSendable(senderId, receiverId, now);
+        enforceEventWideDailyLimit(now.toLocalDate());
         Cook cook = savePendingCook(senderId, receiverId, now);
         completeSend(cook, reverseCook, now);
         return SendCookResponse.from(cook);
@@ -207,21 +214,6 @@ public class CookService {
     }
 
     /**
-     * 행사 전체 하루 한도가 있는 날이면 그 한도의 동시성 잠금을 얻는다. 한도가 없는 날(로컬·개발, 행사 기간 외)에는
-     * 아무 것도 하지 않아 전송이 서로 기다리지 않는다.
-     *
-     * <p>전제조건: 사용자 행 잠금을 이미 얻었고 아직 일반 조회를 하지 않았다 — 이 호출은 {@link #validateSendable}의
-     * 첫 조회보다 앞에 있어야 한다(REPEATABLE-READ 스냅샷 시점, {@link EventLimitLock#acquire} 참고).</p>
-     *
-     * <p>부작용: 한도가 있는 날이면 {@code event_limit_lock} 행을 배타 잠금한다(트랜잭션이 끝날 때까지).</p>
-     */
-    private void lockEventWideLimitIfApplicable(LocalDate today) {
-        if (eventWideLimitOn(today).isPresent()) {
-            eventLimitLock.acquire();
-        }
-    }
-
-    /**
      * 이 콕을 보낼 수 있는지 검사하고, 그 과정에서 조회한 상대의 역방향 콕을 돌려준다(맞콕 판단에 다시 쓴다).
      *
      * <p>전제조건: 호출한 트랜잭션에서 두 사용자 행을 이미 잠갔다(클래스 Javadoc의 잠금 규약). 이 잠금이 있어야
@@ -231,7 +223,8 @@ public class CookService {
      *
      * <p>예외와 검사 순서: {@code ALREADY_MATCHED}(이미 매칭됨) → {@code ALREADY_REJECTED}(내가 이미 거절한
      * 상대 — 상대가 나에게 보낸 콕이 내 거절로 REJECTED 상태) → {@code DUPLICATE}(이미 보낸 콕) →
-     * {@code DAILY_LIMIT} → {@code EVENT_LIMIT}. 순서를 바꾸면 같은 요청이 다른 오류 코드를 받게 된다.</p>
+     * {@code DAILY_LIMIT}. 순서를 바꾸면 같은 요청이 다른 오류 코드를 받게 된다. 행사 전체 한도는 이 검사를 모두
+     * 통과한 뒤 {@link #enforceEventWideDailyLimit}가 본다 — 여기서 실패할 요청이 행사 한도 잠금을 기다리지 않게 한다.</p>
      */
     private Optional<Cook> validateSendable(Long senderId, Long receiverId, LocalDateTime now) {
         if (matchInfoRepository.existsBetween(senderId, receiverId)) {
@@ -245,11 +238,9 @@ public class CookService {
             throw new ApiException(ErrorCode.DUPLICATE);
         }
 
-        DateRange today = today(now.toLocalDate());
-        if (countSent(senderId, today) >= DAILY_LIMIT) {
+        if (countSent(senderId, today(now.toLocalDate())) >= DAILY_LIMIT) {
             throw new ApiException(ErrorCode.DAILY_LIMIT);
         }
-        enforceEventWideDailyLimit(now.toLocalDate(), today);
         return reverseCook;
     }
 
@@ -303,11 +294,25 @@ public class CookService {
         );
     }
 
-    private void enforceEventWideDailyLimit(LocalDate today, DateRange range) {
+    /**
+     * 행사 한도가 있는 날이면 {@code event_limit_lock}을 잠근 뒤 그날 전체 콕 수를 세어 한도를 확인한다. 한도가 없는
+     * 날(로컬·개발, 행사 기간 외)에는 아무 것도 하지 않아 전송이 서로 기다리지 않는다.
+     *
+     * <p>전제조건: 사용자 행 잠금과 {@link #validateSendable}를 마쳤고, 트랜잭션이 READ COMMITTED다({@link #send}
+     * 참고). 잠금 뒤에는 건수 확인·저장·맞콕 처리만 남아야 한다 — 잠금을 쥐는 시간이 행사일 콕 전송의 초당 처리
+     * 한계다.</p>
+     *
+     * <p>부작용: 한도가 있는 날이면 {@code event_limit_lock} 행을 배타 잠금한다(트랜잭션이 끝날 때까지).</p>
+     *
+     * <p>예외: {@code EVENT_LIMIT} — 그날 전체 콕 수가 한도에 닿았다.</p>
+     */
+    private void enforceEventWideDailyLimit(LocalDate today) {
         Optional<Long> limit = eventWideLimitOn(today);
         if (limit.isEmpty()) {
             return;
         }
+        eventLimitLock.acquire();
+        DateRange range = today(today);
         long sentToday = cookRepository.countBySentAtGreaterThanEqualAndSentAtLessThan(
                 range.startInclusive(),
                 range.endExclusive()
@@ -320,9 +325,8 @@ public class CookService {
     /**
      * 그날 적용되는 행사 전체 콕 한도. 한도가 없는 날(로컬·개발, 행사 기간 외)이면 비어 있다.
      *
-     * <p>"한도가 있는 날인가"의 판정을 이 한 곳에 둔다. 동시성 잠금({@link #lockEventWideLimitIfApplicable})과 한도
-     * 검사({@link #enforceEventWideDailyLimit})가 각자 판정하면, 둘이 어긋났을 때 잠금 없이 한도를 세는 상황이
-     * 조용히 생긴다.</p>
+     * <p>"한도가 있는 날인가"의 판정을 이 한 곳에 둔다. 잠금과 건수 확인은 {@link #enforceEventWideDailyLimit} 한
+     * 곳에서 이 판정 하나로 함께 하므로, 잠금 없이 한도를 세는 상황이 생기지 않는다.</p>
      *
      * <p>부작용: 없다.</p>
      */

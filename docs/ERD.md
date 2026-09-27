@@ -198,6 +198,7 @@ erDiagram
 | status | VARCHAR(20) | NOT NULL, DEFAULT 'pending' | pending / matched / expired |
 | sent_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | | | UNIQUE(sender_id, receiver_id) | 같은 상대 재발송 불가 |
+| | | INDEX(sent_at) | 행사일 그날 전체 콕 수 세기(V7) |
 
 ### message
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -395,6 +396,14 @@ ALTER TABLE mission_template
 
 `MissionAssignmentWriter`는 매칭 하나에 묶음 하나를 통째로 배정한다: 이미 배정된 STEP이 있으면 그 묶음을,
 없으면 묶음을 무작위로 골라 STEP1~3을 같은 묶음에서 채운다.
+
+`V7__add_cook_sent_at_index.sql`은 `cook.sent_at`에 인덱스를 추가한다. 행사일 콕 전송은 `event_limit_lock`을
+쥔 채로 그날 전체 콕 수를 세는데, 인덱스가 없어 표 전체를 읽었다. 잠금을 쥐는 시간이 콕 전송의 초당 처리
+한계라서 그날 범위만 읽게 한다.
+
+```sql
+CREATE INDEX idx_cook_sent_at ON cook (sent_at);
+```
 
 ## 6. 이번 문서 범위 밖
 
