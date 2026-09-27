@@ -161,7 +161,7 @@ facecook-fe는 이 목록을 하드코딩하지 않고 `GET /api/departments`로
 | GET | `/api/matches` | 내 매칭 목록 (상대 프로필 + 최근 메시지 미리보기) | 참가자 |
 | GET | `/api/matches/{matchId}` | 매칭 상세 | 참가자 |
 
-**콕 보내기 실패 코드**: `SELF`(자기자신), `NOT_FOUND`(대상없음), `ALREADY_MATCHED`, `ALREADY_REJECTED`(내가 이미 거절한 상대), `DUPLICATE`, `DAILY_LIMIT`, `EVENT_LIMIT`
+**콕 보내기 실패 코드**: `SELF`(자기자신), `NOT_FOUND`(대상없음), `ALREADY_MATCHED`, `ALREADY_REJECTED`(내가 이미 거절한 상대), `DUPLICATE`, `DAILY_LIMIT`, `EVENT_LIMIT`, `COOK_BUSY`(429, 콕 전송이 몰려 서버당 동시 처리 수가 찬 상태로 0.5초를 기다려도 자리가 나지 않음. DB에 가지 않아 하루 사용량은 줄지 않으니 잠시 후 다시 보내면 된다)
 
 검사 순서는 자기자신 → 상대 존재 → 이미 매칭 → 이미 거절한 상대 → 중복 → 개인 한도 → 행사 전체 한도이다.
 상대가 나에게 보낸 콕이 취소됐거나 만료된 상태라면 맞콕으로 취급하지 않고 새 콕(pending)으로 저장된다.

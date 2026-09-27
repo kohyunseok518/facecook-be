@@ -5,6 +5,7 @@ import com.facecook.common.exception.ErrorCode;
 import com.facecook.common.session.AuthenticatedUser;
 import com.facecook.common.session.CurrentUser;
 import com.facecook.cook.config.CookProperties;
+import com.facecook.cook.service.CookSendGate;
 import com.facecook.cook.dto.CookListResponse;
 import com.facecook.cook.dto.SendCookRequest;
 import com.facecook.cook.dto.SendCookResponse;
@@ -45,13 +46,18 @@ public class CookController {
 
     private final CookService cookService;
     private final CookProperties cookProperties;
+    private final CookSendGate cookSendGate;
 
+    /**
+     * 콕을 보낸다. 서버당 동시 처리 수 제한({@link CookSendGate})을 트랜잭션 밖인 여기서 먼저 통과한다 — 서비스 안에서
+     * 기다리면 DB 연결을 쥔 채 기다리게 된다. 자리가 끝내 나지 않으면 429 {@code COOK_BUSY}.
+     */
     @PostMapping
     public ResponseEntity<SendCookResponse> send(
             @CurrentUser AuthenticatedUser currentUser,
             @Valid @RequestBody SendCookRequest request
     ) {
-        return ResponseEntity.ok(cookService.send(currentUser.userId(), request));
+        return ResponseEntity.ok(cookSendGate.run(() -> cookService.send(currentUser.userId(), request)));
     }
 
     @GetMapping

@@ -15,9 +15,11 @@ import com.facecook.common.session.SessionProperties;
 import com.facecook.common.session.SessionTokenSigner;
 import com.facecook.config.WebConfig;
 import com.facecook.cook.config.CookProperties;
+import com.facecook.cook.config.CookSendLimitProperties;
 import com.facecook.cook.dto.CookListResponse;
 import com.facecook.cook.dto.CookUsageResponse;
 import com.facecook.cook.dto.SendCookResponse;
+import com.facecook.cook.service.CookSendGate;
 import com.facecook.cook.service.CookService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.lang.reflect.Field;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -59,6 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         CurrentUserArgumentResolver.class,
         SessionTokenSigner.class,
         SessionCookieService.class,
+        CookSendGate.class,
         CookControllerTest.SessionTestConfig.class
 })
 class CookControllerTest {
@@ -91,6 +95,11 @@ class CookControllerTest {
         }
 
         @Bean
+        CookSendLimitProperties cookSendLimitProperties() {
+            return new CookSendLimitProperties(4, Duration.ZERO);
+        }
+
+        @Bean
         SessionProperties sessionProperties() {
             return new SessionProperties("test-secret", COOKIE_NAME, 604800, false, "Lax", null);
         }
@@ -118,6 +127,21 @@ class CookControllerTest {
                 .andExpect(jsonPath("$.receiverId").value(2))
                 .andExpect(jsonPath("$.matched").value(true))
                 .andExpect(jsonPath("$.matchId").value(20));
+    }
+
+    @Test
+    void cookBusyIsTooManyRequestsWithItsCode() throws Exception {
+        givenAuthenticatedUser(1L);
+        when(cookService.send(any(), any())).thenThrow(new ApiException(ErrorCode.COOK_BUSY));
+
+        mockMvc.perform(post("/api/cooks")
+                        .cookie(validCookie(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"receiverId": 2}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("COOK_BUSY"));
     }
 
     @Test
