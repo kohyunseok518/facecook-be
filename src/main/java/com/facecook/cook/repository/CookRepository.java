@@ -34,9 +34,14 @@ public interface CookRepository extends JpaRepository<Cook, Long> {
     @Query("select cook from Cook cook where cook.id = :cookId")
     Optional<Cook> findByIdForUpdate(@Param("cookId") Long cookId);
 
-    boolean existsBySenderIdAndReceiverId(Long senderId, Long receiverId);
-
-    Optional<Cook> findBySenderIdAndReceiverId(Long senderId, Long receiverId);
+    /**
+     * 두 사람 사이의 콕을 방향 구분 없이 한 번에 읽는다(A→B, B→A 최대 2개). 콕 전송 검사가 정방향(중복)과
+     * 역방향(거절·맞콕)을 따로 조회하던 두 번의 DB 왕복을 하나로 줄인다. {@code uq_cook_sender_receiver}
+     * 인덱스로 두 점만 읽는다.
+     */
+    @Query("select cook from Cook cook where (cook.senderId = :userA and cook.receiverId = :userB)"
+            + " or (cook.senderId = :userB and cook.receiverId = :userA)")
+    List<Cook> findAllBetween(@Param("userA") Long userA, @Param("userB") Long userB);
 
     List<Cook> findAllBySenderIdOrReceiverIdOrderBySentAtDesc(Long senderId, Long receiverId);
 
