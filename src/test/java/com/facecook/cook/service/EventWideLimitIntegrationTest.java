@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -26,6 +27,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,8 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>확인 항목: 마지막 한 자리를 두 쌍이 다투면 한 쌍만 성공하고 다른 쌍은 첫 쌍의 커밋을 본 채로
  * {@code EVENT_LIMIT}을 받는지(두 번째 전송이 행사 한도 잠금에서 기다리는 것을 DB에서 확인한 뒤 첫 전송을
  * 커밋한다), 마지막 다섯 자리를 열 쌍이 동시에 다투면 정확히 다섯 쌍만 성공하는지, 그날 0시 이전·다음날
- * 0시의 콕은 그날 한도를 소비하지 않는지. 두 번째 전송이 잠금 없이 통과하거나(잠금 누락) 잠금 이전에 만든
- * 스냅샷으로 건수를 세면(잠금 순서 오류) 이 테스트가 실패한다.</p>
+ * 0시의 콕은 그날 한도를 소비하지 않는지, 검사(중복 등)에서 실패할 전송은 행사 한도 잠금을 기다리지 않는지.
+ * 두 번째 전송이 잠금 없이 통과하거나(잠금 누락) 잠금을 기다리기 전 시점의 데이터로 건수를 세면(격리 수준 오류)
+ * 이 테스트가 실패한다.</p>
  *
  * <p>부작용: 필러 사용자 78명과 그날 콕 수천 개를 커밋한 뒤 끝나면 모두 삭제한다. 공유 DB이므로 시작할 때도
  * 그날 콕을 비운다. 푸시는 목으로 대체한다.</p>
@@ -46,6 +54,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EventWideLimitIntegrationTest extends MySqlIntegrationTestSupport {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    // 잠금을 기다리지 않는 전송이 끝나기에 충분한 시간. 기다린다면 잠금이 풀리지 않으므로 이 시간을 넘긴다.
+    private static final Duration LOCK_FREE_TIMEOUT = Duration.ofSeconds(10);
     private static final long EVENT_LIMIT = 3_000L;
     private static final int FILLER_USERS = 78;
     private static final LocalDateTime SENT_ON_EVENT_DAY = LocalDateTime.of(2026, 9, 30, 10, 0);
@@ -149,6 +159,47 @@ class EventWideLimitIntegrationTest extends MySqlIntegrationTestSupport {
 
         assertThatSendFailsWithEventLimit(second);
         assertThat(sentOnEventDay()).isEqualTo(EVENT_LIMIT);
+    }
+
+    @Test
+    void sendThatFailsValidationDoesNotWaitForTheEventLimitLock() throws Exception {
+        long[] pair = newPair();
+        cookService.send(pair[0], new SendCookRequest(pair[1]));
+
+        Throwable error = runWhileEventLimitLockIsHeld(() -> cookService.send(pair[0], new SendCookRequest(pair[1])));
+
+        assertThat(error).isInstanceOfSatisfying(ApiException.class,
+                exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE));
+    }
+
+    /**
+     * 다른 트랜잭션이 {@code event_limit_lock}을 쥔 채로 command를 다른 스레드에서 실행하고, 잠금이 풀리기 전에 끝난
+     * 결과(예외, 성공이면 null)를 돌려준다. command가 행사 잠금을 기다리면 제한 시간 안에 끝나지 못해 실패한다.
+     */
+    private Throwable runWhileEventLimitLockIsHeld(Runnable command) throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            return new TransactionTemplate(transactionManager).execute(status -> {
+                jdbcTemplate.queryForList("select lock_id from event_limit_lock where lock_id = 1 for update");
+                Future<Throwable> result = executor.submit(() -> {
+                    try {
+                        command.run();
+                        return null;
+                    } catch (Throwable throwable) {
+                        return throwable;
+                    }
+                });
+                try {
+                    return result.get(LOCK_FREE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+                } catch (TimeoutException exception) {
+                    throw new AssertionError("검사에서 실패할 전송이 행사 한도 잠금을 기다렸다", exception);
+                } catch (InterruptedException | ExecutionException exception) {
+                    throw new IllegalStateException(exception);
+                }
+            });
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private void assertThatSendFailsWithEventLimit(long[] pair) {

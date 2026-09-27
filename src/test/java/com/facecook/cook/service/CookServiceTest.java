@@ -247,7 +247,7 @@ class CookServiceTest {
     }
 
     @Test
-    void sendLocksEventLimitAfterUsersAndBeforeAnyPlainRead() {
+    void sendLocksEventLimitOnlyAfterUserLockAndValidation() {
         givenLockedUsers(1L, 2L);
         when(cookRepository.saveAndFlush(any(Cook.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -255,9 +255,23 @@ class CookServiceTest {
 
         InOrder order = inOrder(cookUserRepository, eventLimitLock, matchInfoRepository, cookRepository);
         order.verify(cookUserRepository).findAllByIdForUpdate(List.of(1L, 2L));
-        order.verify(eventLimitLock).acquire();
         order.verify(matchInfoRepository).existsBetween(1L, 2L);
+        order.verify(cookRepository).countBySenderIdAndSentAtGreaterThanEqualAndSentAtLessThan(eq(1L), any(), any());
+        order.verify(eventLimitLock).acquire();
         order.verify(cookRepository).countBySentAtGreaterThanEqualAndSentAtLessThan(any(), any());
+        order.verify(cookRepository).saveAndFlush(any(Cook.class));
+    }
+
+    @Test
+    void sendDoesNotTakeEventLimitLockWhenPersonalDailyLimitIsReached() {
+        givenLockedUsers(1L, 2L);
+        when(cookRepository.countBySenderIdAndSentAtGreaterThanEqualAndSentAtLessThan(eq(1L), any(), any()))
+                .thenReturn((long) CookService.DAILY_LIMIT);
+
+        assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.DAILY_LIMIT);
+
+        verify(eventLimitLock, never()).acquire();
+        verify(cookRepository, never()).countBySentAtGreaterThanEqualAndSentAtLessThan(any(), any());
     }
 
     @Test
