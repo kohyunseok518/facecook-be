@@ -118,13 +118,13 @@ class CookServiceTest {
 
         assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.ALREADY_MATCHED);
 
-        verify(cookRepository, never()).existsBySenderIdAndReceiverId(any(), any());
+        verify(cookRepository, never()).findAllBetween(any(), any());
     }
 
     @Test
     void rejectsDuplicateCook() {
         givenLockedUsers(1L, 2L);
-        when(cookRepository.existsBySenderIdAndReceiverId(1L, 2L)).thenReturn(true);
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(cook(20L, 1L, 2L, EVENT_NOW.minusMinutes(5))));
 
         assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.DUPLICATE);
 
@@ -190,7 +190,7 @@ class CookServiceTest {
     @Test
     void duplicateIsCheckedBeforeAnyLimitCount() {
         givenLockedUsers(1L, 2L);
-        when(cookRepository.existsBySenderIdAndReceiverId(1L, 2L)).thenReturn(true);
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(cook(20L, 1L, 2L, EVENT_NOW.minusMinutes(5))));
 
         assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.DUPLICATE);
 
@@ -302,7 +302,7 @@ class CookServiceTest {
     void mutualCookCreatesMatchAndConnectsBothCooks() {
         givenLockedUsers(1L, 2L);
         Cook reverse = cook(10L, 2L, 1L, EVENT_NOW.minusMinutes(59));
-        when(cookRepository.findBySenderIdAndReceiverId(2L, 1L)).thenReturn(Optional.of(reverse));
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(reverse));
         when(cookRepository.saveAndFlush(any(Cook.class))).thenAnswer(invocation -> {
             Cook saved = invocation.getArgument(0);
             setField(saved, "id", 11L);
@@ -336,7 +336,7 @@ class CookServiceTest {
     void reverseCookAfterOneHourStillMatches() {
         givenLockedUsers(1L, 2L);
         Cook reverse = cook(10L, 2L, 1L, EVENT_NOW.minusHours(1));
-        when(cookRepository.findBySenderIdAndReceiverId(2L, 1L)).thenReturn(Optional.of(reverse));
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(reverse));
         when(cookRepository.saveAndFlush(any(Cook.class))).thenAnswer(invocation -> {
             Cook saved = invocation.getArgument(0);
             setField(saved, "id", 11L);
@@ -565,7 +565,7 @@ class CookServiceTest {
         givenLockedUsers(2L, 1L);
         Cook rejected = cook(10L, 1L, 2L, EVENT_NOW.minusMinutes(5));
         rejected.reject(2L);
-        when(cookRepository.findBySenderIdAndReceiverId(1L, 2L)).thenReturn(Optional.of(rejected));
+        when(cookRepository.findAllBetween(2L, 1L)).thenReturn(List.of(rejected));
 
         assertThatThrownBy(() -> cookService.send(2L, new SendCookRequest(1L)))
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
@@ -585,7 +585,7 @@ class CookServiceTest {
 
         assertErrorCode(() -> cookService.send(2L, new SendCookRequest(1L)), ErrorCode.ALREADY_MATCHED);
 
-        verify(cookRepository, never()).findBySenderIdAndReceiverId(any(), any());
+        verify(cookRepository, never()).findAllBetween(any(), any());
     }
 
     @Test
@@ -593,17 +593,16 @@ class CookServiceTest {
         givenLockedUsers(1L, 2L);
         Cook rejectedByOtherSide = cook(11L, 2L, 1L, EVENT_NOW.minusMinutes(5));
         rejectedByOtherSide.reject(1L);
-        when(cookRepository.findBySenderIdAndReceiverId(2L, 1L)).thenReturn(Optional.of(rejectedByOtherSide));
+        Cook alreadySent = cook(20L, 1L, 2L, EVENT_NOW.minusMinutes(4));
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(rejectedByOtherSide, alreadySent));
 
         assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.ALREADY_REJECTED);
-
-        verify(cookRepository, never()).existsBySenderIdAndReceiverId(any(), any());
     }
 
     @Test
     void resendingToPersonWhoRejectedMeIsDuplicate() {
         givenLockedUsers(1L, 2L);
-        when(cookRepository.existsBySenderIdAndReceiverId(1L, 2L)).thenReturn(true);
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(cook(20L, 1L, 2L, EVENT_NOW.minusMinutes(5))));
 
         assertErrorCode(() -> cookService.send(1L, new SendCookRequest(2L)), ErrorCode.DUPLICATE);
 
@@ -615,7 +614,7 @@ class CookServiceTest {
         givenLockedUsers(1L, 2L);
         Cook cancelledReverse = cook(10L, 2L, 1L, EVENT_NOW.minusMinutes(5));
         cancelledReverse.cancel(2L);
-        when(cookRepository.findBySenderIdAndReceiverId(2L, 1L)).thenReturn(Optional.of(cancelledReverse));
+        when(cookRepository.findAllBetween(1L, 2L)).thenReturn(List.of(cancelledReverse));
         when(cookRepository.saveAndFlush(any(Cook.class))).thenAnswer(invocation -> {
             Cook saved = invocation.getArgument(0);
             setField(saved, "id", 11L);

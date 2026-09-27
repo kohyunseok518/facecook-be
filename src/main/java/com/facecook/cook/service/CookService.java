@@ -219,7 +219,7 @@ public class CookService {
      * <p>전제조건: 호출한 트랜잭션에서 두 사용자 행을 이미 잠갔다(클래스 Javadoc의 잠금 규약). 이 잠금이 있어야
      * 아래 조회와 개수 확인이 같은 쌍의 다른 명령과 겹치지 않는다.</p>
      *
-     * <p>부작용: 없다(조회 전용).</p>
+     * <p>부작용: 없다(조회 전용). 두 사람 사이 콕은 방향 구분 없이 한 번에 읽어 거절·중복 판정에 함께 쓴다.</p>
      *
      * <p>예외와 검사 순서: {@code ALREADY_MATCHED}(이미 매칭됨) → {@code ALREADY_REJECTED}(내가 이미 거절한
      * 상대 — 상대가 나에게 보낸 콕이 내 거절로 REJECTED 상태) → {@code DUPLICATE}(이미 보낸 콕) →
@@ -230,11 +230,14 @@ public class CookService {
         if (matchInfoRepository.existsBetween(senderId, receiverId)) {
             throw new ApiException(ErrorCode.ALREADY_MATCHED);
         }
-        Optional<Cook> reverseCook = cookRepository.findBySenderIdAndReceiverId(receiverId, senderId);
+        List<Cook> cooksBetween = cookRepository.findAllBetween(senderId, receiverId);
+        Optional<Cook> reverseCook = cooksBetween.stream()
+                .filter(cook -> cook.getSenderId().equals(receiverId))
+                .findFirst();
         if (reverseCook.filter(Cook::isRejected).isPresent()) {
             throw new ApiException(ErrorCode.ALREADY_REJECTED, "이미 거절한 상대예요.");
         }
-        if (cookRepository.existsBySenderIdAndReceiverId(senderId, receiverId)) {
+        if (cooksBetween.stream().anyMatch(cook -> cook.getSenderId().equals(senderId))) {
             throw new ApiException(ErrorCode.DUPLICATE);
         }
 
