@@ -61,6 +61,7 @@ public class CookService {
      * 외 날짜는 이 제한을 적용하지 않는다(로컬/개발 환경 대비).
      */
     private static final Map<LocalDate, Long> EVENT_WIDE_DAILY_LIMITS = Map.of(
+            LocalDate.of(2026,9,27), 9_000L,
             LocalDate.of(2026, 9, 30), 3_000L,
             LocalDate.of(2026, 10, 1), 6_000L,
             LocalDate.of(2026, 10, 2), 9_000L
