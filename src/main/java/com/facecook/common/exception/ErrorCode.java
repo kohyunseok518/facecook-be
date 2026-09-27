@@ -40,6 +40,7 @@ public enum ErrorCode {
     DUPLICATE(HttpStatus.CONFLICT, "이미 콕을 보낸 상대입니다."),
     DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "오늘 보낼 수 있는 콕을 모두 사용했습니다."),
     EVENT_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "행사 전체 콕 제한에 도달했습니다."),
+    COOK_BUSY(HttpStatus.TOO_MANY_REQUESTS, "지금 콕이 몰리고 있어요. 잠시 후 다시 눌러 주세요."),
     CLOSED(HttpStatus.FORBIDDEN, "채팅 운영시간이 아닙니다."),
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "신고를 찾을 수 없습니다."),
     REPORT_ALREADY_REVIEWED(HttpStatus.CONFLICT, "이미 처리된 신고입니다."),
