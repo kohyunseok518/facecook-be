@@ -55,6 +55,13 @@ spring:
     enabled: true
 
 management:
+  endpoint:
+    health:
+      probes:
+        # /actuator/health/liveness·readiness를 연다(facecook-be#145). ALB는 liveness만 본다 — 앱 자체 상태만 반영하므로
+        # DB·Redis가 잠깐 멈춰도 두 서버를 모두 비정상으로 판정해 교체하지 않는다. /actuator/health는 지금처럼 DB·Redis까지
+        # 반영하고, 배포 스크립트가 새 서버가 DB에 붙었는지 확인하는 데 쓴다.
+        enabled: true
   health:
     mail:
       # ALB 헬스체크(/actuator/health)가 SMTP(Brevo) 연결 상태까지 반영하지 않게 제외한다.

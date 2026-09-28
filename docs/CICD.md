@@ -27,6 +27,9 @@ main 머지 → deploy.yml: test → 이미지 빌드·ECR 푸시 → 서버 순
   실행 중인 컨테이너의 이미지가 방금 배포한 digest인지, 프로세스가 떠 있는지, `/actuator/health`가 UP을
   응답하는지(최대 약 3분). 그 뒤에 ALB 대상 그룹이 healthy가 될 때까지 기다린다. ALB의 healthy 값은 이전
   컨테이너가 남긴 판정일 수 있어서 그것만으로 판단하지 않는다
+- **헬스체크 경로는 둘로 나뉜다(#145).** 배포 스크립트는 `/actuator/health`(DB·Redis 연결까지 반영)로 새 서버가
+  DB에 붙었는지 확인한다. ALB 대상 그룹은 `/actuator/health/liveness`(앱 자체 상태만 반영)를 본다. DB나 Redis가
+  잠깐 멈췄을 때 ALB가 두 서버를 모두 비정상으로 판정해 자동 확장 그룹이 서버를 전부 교체하는 것을 막기 위해서다
 - 배포 로그의 `배포 이미지: <repo>@sha256:...`와 `배포 digest: sha256:...` 줄이 이번 배포의 이미지다. 저장소 주소는
   GitHub secret이라 로그에서 `***`로 가려지지만 digest는 그대로 보인다
 
