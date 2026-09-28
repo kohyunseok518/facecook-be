@@ -1362,6 +1362,8 @@ erDiagram
 6. 새 컨테이너 실행 → 이미지가 맞는지, `/actuator/health`가 UP인지 확인
 7. ALB 헬스체크가 healthy가 되면 다음 서버로. 실패하면 **다음 서버로 넘어가지 않는다**
 
+헬스체크 경로는 둘이다(#145). 6번의 `/actuator/health`는 DB·Redis 연결까지 보고, ALB는 `/actuator/health/liveness`(앱 자체 상태만)를 본다. DB가 잠깐 멈춰도 ALB가 두 서버를 모두 빼고 자동 확장 그룹이 전부 교체하는 일을 막으려고 나눴다.
+
 한 대씩 바꾸는 동안 다른 한 대가 요청을 받으므로 서비스가 끊기지 않는다. 자세한 내용은 [CICD.md](./CICD.md).
 
 ### 6.2 로그 보기
@@ -2941,6 +2943,8 @@ erDiagram
 5. 기존 컨테이너 정상 종료(`docker stop -t 30`) — 진행 중 요청을 마치고 WebSocket을 닫는다
 6. 새 컨테이너 실행 → 이미지가 맞는지, `/actuator/health`가 UP인지 확인
 7. ALB 헬스체크가 healthy가 되면 다음 서버로. 실패하면 **다음 서버로 넘어가지 않는다**
+
+헬스체크 경로는 둘이다(#145). 6번의 `/actuator/health`는 DB·Redis 연결까지 보고, ALB는 `/actuator/health/liveness`(앱 자체 상태만)를 본다. DB가 잠깐 멈춰도 ALB가 두 서버를 모두 빼고 자동 확장 그룹이 전부 교체하는 일을 막으려고 나눴다.
 
 한 대씩 바꾸는 동안 다른 한 대가 요청을 받으므로 서비스가 끊기지 않는다. 자세한 내용은 [CICD.md](./CICD.md).
 
