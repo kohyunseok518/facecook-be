@@ -40,7 +40,7 @@ class ParticipantListCacheTest {
     @BeforeEach
     void setUp() {
         when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        when(profileRepository.findAllByOrderByUserIdAsc())
+        when(profileRepository.findAllVisibleParticipants())
                 .thenReturn(List.of(profile(1L), profile(2L), profile(3L)));
         when(activityLookup.toResponses(any())).thenAnswer(invocation -> {
             List<Profile> profiles = invocation.getArgument(0);
@@ -71,7 +71,7 @@ class ParticipantListCacheTest {
         cache.getAllExcept(2L);
         cache.getAllExcept(3L);
 
-        verify(profileRepository, times(1)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(1)).findAllVisibleParticipants();
         verify(transactionManager, times(1)).getTransaction(any());
     }
 
@@ -83,7 +83,7 @@ class ParticipantListCacheTest {
         clock.advance(Duration.ofSeconds(10));
         cache.getAllExcept(1L);
 
-        verify(profileRepository, times(2)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(2)).findAllVisibleParticipants();
     }
 
     @Test
@@ -93,7 +93,7 @@ class ParticipantListCacheTest {
         cache.getAllExcept(1L);
         cache.getAllExcept(1L);
 
-        verify(profileRepository, times(2)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(2)).findAllVisibleParticipants();
     }
 
     @Test
@@ -104,7 +104,7 @@ class ParticipantListCacheTest {
         cache.evictAfterCommit();
         cache.getAllExcept(1L);
 
-        verify(profileRepository, times(2)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(2)).findAllVisibleParticipants();
     }
 
     @Test
@@ -115,12 +115,12 @@ class ParticipantListCacheTest {
 
         cache.evictAfterCommit();
         cache.getAllExcept(1L); // 아직 커밋 전: 보관본을 그대로 쓴다.
-        verify(profileRepository, times(1)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(1)).findAllVisibleParticipants();
 
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
         TransactionSynchronizationManager.clearSynchronization();
         cache.getAllExcept(1L);
-        verify(profileRepository, times(2)).findAllByOrderByUserIdAsc();
+        verify(profileRepository, times(2)).findAllVisibleParticipants();
     }
 
     @Test
@@ -128,7 +128,7 @@ class ParticipantListCacheTest {
         ParticipantListCache cache = cache(10);
         CountDownLatch loading = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        when(profileRepository.findAllByOrderByUserIdAsc()).thenAnswer(invocation -> {
+        when(profileRepository.findAllVisibleParticipants()).thenAnswer(invocation -> {
             loading.countDown();
             release.await(5, TimeUnit.SECONDS);
             return List.of(profile(1L), profile(2L));
@@ -147,7 +147,7 @@ class ParticipantListCacheTest {
             for (Future<List<ProfileResponse>> other : others) {
                 other.get(5, TimeUnit.SECONDS);
             }
-            verify(profileRepository, times(1)).findAllByOrderByUserIdAsc();
+            verify(profileRepository, times(1)).findAllVisibleParticipants();
         } finally {
             executor.shutdownNow();
         }
@@ -157,7 +157,7 @@ class ParticipantListCacheTest {
     void doesNotLoadUntilAsked() {
         cache(10);
 
-        verify(profileRepository, never()).findAllByOrderByUserIdAsc();
+        verify(profileRepository, never()).findAllVisibleParticipants();
     }
 
     private ParticipantListCache cache(long ttlSeconds) {
