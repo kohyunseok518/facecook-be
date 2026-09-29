@@ -1,6 +1,7 @@
 package com.facecook.auth.repository;
 
 import com.facecook.auth.entity.User;
+import com.facecook.auth.entity.UserRole;
 import com.facecook.auth.entity.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -30,9 +31,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
-    long countByStatus(UserStatus status);
+    /** 역할별 계정 수. 관리자 통계의 총 가입자(참가자만, #151). */
+    long countByRole(UserRole role);
 
-    long countByLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+    /** 역할·상태별 계정 수. 관리자 통계 오늘 활성의 STATUS 기준(#151). */
+    long countByRoleAndStatus(UserRole role, UserStatus status);
+
+    /** 기간 안에 활동한 역할별 계정 수. 관리자 통계 오늘 활성의 LAST_ACTIVE_TODAY 기준(#151). */
+    long countByRoleAndLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+            UserRole role,
             LocalDateTime startInclusive,
             LocalDateTime endExclusive
     );
