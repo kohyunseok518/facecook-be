@@ -3,6 +3,7 @@ package com.facecook.admin.service;
 import com.facecook.admin.config.ActiveUserCriterion;
 import com.facecook.admin.config.AdminStatsProperties;
 import com.facecook.admin.dto.AdminStatsResponse;
+import com.facecook.auth.entity.UserRole;
 import com.facecook.auth.entity.UserStatus;
 import com.facecook.auth.repository.UserRepository;
 import com.facecook.cook.repository.CookRepository;
@@ -40,9 +41,10 @@ public class AdminStatsService {
     private final Clock clock;
 
     /**
-     * 전체 유저 수, 오늘 활동한 유저 수, 누적 콕 수, 누적 매칭 수, 미션
+     * 참가자 수, 오늘 활동한 참가자 수, 누적 콕 수, 누적 매칭 수, 미션
      * 완주(STEP 3까지 완료) 매칭 수, 처리 대기 중인 신고 수를 한 번에
-     * 반환한다.
+     * 반환한다. 참가자 수와 오늘 활성은 참가자(PARTICIPANT) 계정만 센다 — 관리자·슈퍼 계정은 빼고, 정지된 참가자는
+     * 가입자로 센다(facecook-be#151).
      *
      * <p>전제조건: 없음.</p>
      *
@@ -58,7 +60,7 @@ public class AdminStatsService {
     @Transactional(readOnly = true)
     public AdminStatsResponse getStats() {
         return new AdminStatsResponse(
-                userRepository.count(),
+                userRepository.countByRole(UserRole.PARTICIPANT),
                 countActiveUsers(),
                 cookRepository.count(),
                 matchInfoRepository.count(),
@@ -72,10 +74,10 @@ public class AdminStatsService {
      *
      * <ul>
      * <li>{@code LAST_ACTIVE_TODAY}(기본값): {@code last_active_at}이 오늘(행사 시간대 자정 ~ 다음 날 자정)인 계정 수.
-     * {@code last_active_at}은 인증된 요청마다 30초 간격으로 갱신된다({@code UserActivityService}). 관리자·슈퍼
-     * 계정도 오늘 요청을 보냈으면 들어간다.</li>
-     * <li>{@code STATUS}: {@code status = active}인 계정 수. 활동 시각을 보지 않으므로 사실상
-     * "정지되지 않은 전체 계정"이다.</li>
+     * {@code last_active_at}은 인증된 요청마다 30초 간격으로 갱신된다({@code UserActivityService}). 참가자 계정만
+     * 센다 — 관리자가 대시보드를 열어도 늘지 않는다(#151).</li>
+     * <li>{@code STATUS}: {@code status = active}인 참가자 계정 수. 활동 시각을 보지 않으므로 사실상
+     * "정지되지 않은 참가자 전체"다.</li>
      * </ul>
      *
      * <p>참가자용 {@code GET /api/stats}의 "활동 중"({@code ProfileActivityLookup#activeSince}, 기본 최근 15분·프로필이
@@ -83,12 +85,13 @@ public class AdminStatsService {
      */
     private long countActiveUsers() {
         if (properties.activeUserCriterion() == ActiveUserCriterion.STATUS) {
-            return userRepository.countByStatus(UserStatus.ACTIVE);
+            return userRepository.countByRoleAndStatus(UserRole.PARTICIPANT, UserStatus.ACTIVE);
         }
 
         LocalDate eventDate = EventTime.today(clock);
         LocalDateTime startInclusive = eventDate.atStartOfDay();
-        return userRepository.countByLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+        return userRepository.countByRoleAndLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+                UserRole.PARTICIPANT,
                 startInclusive,
                 startInclusive.plusDays(1)
         );

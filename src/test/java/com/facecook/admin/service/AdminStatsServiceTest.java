@@ -2,6 +2,7 @@ package com.facecook.admin.service;
 
 import com.facecook.admin.config.ActiveUserCriterion;
 import com.facecook.admin.config.AdminStatsProperties;
+import com.facecook.auth.entity.UserRole;
 import com.facecook.auth.entity.UserStatus;
 import com.facecook.auth.repository.UserRepository;
 import com.facecook.cook.repository.CookRepository;
@@ -47,8 +48,8 @@ class AdminStatsServiceTest {
     @Test
     void returnsStatsUsingActiveStatusWhenConfigured() {
         AdminStatsService service = service(ActiveUserCriterion.STATUS);
-        when(userRepository.count()).thenReturn(214L);
-        when(userRepository.countByStatus(UserStatus.ACTIVE)).thenReturn(200L);
+        when(userRepository.countByRole(UserRole.PARTICIPANT)).thenReturn(214L);
+        when(userRepository.countByRoleAndStatus(UserRole.PARTICIPANT, UserStatus.ACTIVE)).thenReturn(200L);
         when(cookRepository.count()).thenReturn(487L);
         when(matchInfoRepository.count()).thenReturn(63L);
         when(matchMissionRepository.countByCurrentStepGreaterThanEqual(MatchMission.COMPLETED_STEP))
@@ -70,7 +71,8 @@ class AdminStatsServiceTest {
         AdminStatsService service = service(ActiveUserCriterion.LAST_ACTIVE_TODAY);
         LocalDateTime startInclusive = LocalDateTime.of(2026, 9, 30, 0, 0);
         LocalDateTime endExclusive = LocalDateTime.of(2026, 10, 1, 0, 0);
-        when(userRepository.countByLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+        when(userRepository.countByRoleAndLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+                UserRole.PARTICIPANT,
                 startInclusive,
                 endExclusive
         )).thenReturn(96L);
@@ -78,7 +80,8 @@ class AdminStatsServiceTest {
         var response = service.getStats();
 
         assertThat(response.activeToday()).isEqualTo(96L);
-        verify(userRepository).countByLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+        verify(userRepository).countByRoleAndLastActiveAtGreaterThanEqualAndLastActiveAtLessThan(
+                UserRole.PARTICIPANT,
                 startInclusive,
                 endExclusive
         );
