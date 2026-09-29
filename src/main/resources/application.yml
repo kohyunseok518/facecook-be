@@ -37,6 +37,11 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Redis 명령 하나를 기다리는 최대 시간(facecook-be#147). 없으면 Redis가 대답 없이 멈췄을 때 채팅 처리 스레드가
+      # 오래 붙잡혀 채팅 전송·소켓 연결이 전부 멈췄고, Redis가 돌아온 뒤에도 20초 넘게 이어졌다(로컬 재현).
+      # 1초면 실패로 빨리 넘어가 이미 있는 실패 처리(채팅 발행 건너뜀, 접속 여부는 "접속 안 함")로 간다.
+      # 운영 Redis 응답은 평균 약 2ms, 최대 16ms(70초 측정)라 정상일 때 1초를 넘길 일은 사실상 없다.
+      timeout: ${REDIS_TIMEOUT:1s}
       repositories:
         enabled: false
   mail:
