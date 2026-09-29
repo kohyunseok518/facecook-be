@@ -13,7 +13,7 @@ import java.time.Clock;
 import java.util.List;
 
 /**
- * 탐색 목록(참가자 전원 프로필)을 서버 메모리에 잠깐 보관한다(facecook-be#133).
+ * 탐색 목록(활동 상태인 참가자 전원 프로필 — 관리자·슈퍼·정지 계정 제외, #149)을 서버 메모리에 잠깐 보관한다(facecook-be#133).
  *
  * <p>이 목록은 요청마다 참가자 전원 프로필과 계정을 읽는다(900명이면 약 1,880행). 2026-09-26 부하테스트에서
  * 이 쿼리 하나가 DB 시간의 33%를 차지했다. 목록은 몇 초 사이에 거의 바뀌지 않아서, 한 번 만든 응답을
@@ -94,7 +94,7 @@ public class ParticipantListCache {
             return cached; // 기다리는 동안 앞 요청이 이미 새로 읽었다.
         }
         List<ProfileResponse> responses = readOnlyTransaction.execute(status ->
-                activityLookup.toResponses(profileRepository.findAllByOrderByUserIdAsc()));
+                activityLookup.toResponses(profileRepository.findAllVisibleParticipants()));
         Snapshot loaded = new Snapshot(List.copyOf(responses), clock.millis());
         if (ttlMillis > 0) {
             snapshot = loaded;

@@ -159,8 +159,8 @@ public class ProfileService {
      */
     @Transactional(readOnly = true)
     public ProfileStatsResponse getStats() {
-        long total = profileRepository.count();
-        long activeNow = profileRepository.countActiveSince(activityLookup.activeSince());
+        long total = profileRepository.countVisibleParticipants();
+        long activeNow = profileRepository.countVisibleParticipantsActiveSince(activityLookup.activeSince());
         return new ProfileStatsResponse(total, activeNow);
     }
 
@@ -179,8 +179,8 @@ public class ProfileService {
     @Transactional(readOnly = true)
     public ProfileFiltersResponse getFilters(boolean activeOnly) {
         List<Profile> profiles = activeOnly
-                ? profileRepository.findAllActiveSince(activityLookup.activeSince())
-                : profileRepository.findAll();
+                ? profileRepository.findVisibleParticipantsActiveSince(activityLookup.activeSince())
+                : profileRepository.findAllVisibleParticipants();
 
         TreeSet<String> departments = new TreeSet<>();
         TreeSet<String> mbtis = new TreeSet<>();

@@ -110,10 +110,10 @@
 | GET | `/api/profile` | 내 프로필 조회 | 참가자 |
 | POST | `/api/profile` | 필수+선택 프로필 최초 등록 (`nickname, gender, age(19 이상), mbti, hobby, bloodType, department?, grade?, bio?, idealType?, photo?`) | 참가자 |
 | PATCH | `/api/profile` | 선택 항목만 수정 (`department?, grade?, bio?, photo?`) — 필수 필드는 요청 자체에 안 받음 | 참가자 |
-| GET | `/api/profiles` | 참가자 목록 (본인 제외) | 참가자 |
-| GET | `/api/profiles/filters?active=` | 실제 참가자가 가진 학과·MBTI·취미 값(정렬됨). `active=true`면 활동 중인 참가자만 대상 | 참가자 |
+| GET | `/api/profiles` | 참가자 목록 (본인 제외, 활동 상태인 참가자만 — 관리자·슈퍼·정지 계정 제외) | 참가자 |
+| GET | `/api/profiles/filters?active=` | 실제 참가자가 가진 학과·MBTI·취미 값(정렬됨). `active=true`면 활동 중인 참가자만 대상. 관리자·슈퍼·정지 계정의 프로필은 빠진다 | 참가자 |
 | GET | `/api/profiles/{userId}` | 특정 참가자 프로필 상세 | 참가자 |
-| GET | `/api/stats` | 참가자용 `{ total, activeNow }` — 등록된 프로필 수, 최근 15분 내 활동한 참가자 수 | 참가자 |
+| GET | `/api/stats` | 참가자용 `{ total, activeNow }` — 프로필이 있는 참가자 수, 그중 최근 15분 내 활동한 수. 관리자·슈퍼·정지 계정은 세지 않는다 | 참가자 |
 | GET | `/api/departments` | 학과 정본을 학부별로 묶어서 반환 (`[{ college, majors[] }]`) | 참가자 |
 
 ### 프로필 응답의 활동 정보
@@ -318,7 +318,7 @@ CONNECT에 하트비트(10초 이하)를 설정해야 하며, 일정 시간(약 
   관리자·슈퍼 계정도 당일 요청을 보냈으면 포함된다.
 - `ADMIN_STATS_ACTIVE_USER_CRITERION=STATUS`로 설정하면 `users.status = ACTIVE`인
   계정 수(정지되지 않은 전체 계정)를 집계한다.
-- 참가자용 `GET /api/stats`의 `activeNow`(최근 15분, 프로필이 있는 계정)와는
+- 참가자용 `GET /api/stats`의 `activeNow`(최근 15분, 프로필이 있는 활동 상태 참가자)와는
   세는 대상이 달라서 두 수치가 다르게 나오는 게 정상이다.
 
 ## 8. 슈퍼 계정

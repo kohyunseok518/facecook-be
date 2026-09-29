@@ -201,9 +201,9 @@ class ProfileServiceTest {
 
     @Test
     void getsParticipantStats() {
-        when(profileRepository.count()).thenReturn(120L);
+        when(profileRepository.countVisibleParticipants()).thenReturn(120L);
         when(activityLookup.activeSince()).thenReturn(java.time.LocalDateTime.of(2026, 9, 30, 12, 0));
-        when(profileRepository.countActiveSince(any())).thenReturn(37L);
+        when(profileRepository.countVisibleParticipantsActiveSince(any())).thenReturn(37L);
 
         var stats = profileService.getStats();
 
@@ -213,7 +213,7 @@ class ProfileServiceTest {
 
     @Test
     void buildsFiltersFromDistinctValuesActuallyPresent() {
-        when(profileRepository.findAll()).thenReturn(List.of(
+        when(profileRepository.findAllVisibleParticipants()).thenReturn(List.of(
                 profile(1L, "a"),
                 profileWith(2L, "b", "소프트웨어공학과", "ENFP", "영화보기,산책"),
                 profileWith(3L, "c", "소프트웨어공학과", "INTJ", "산책,독서")
@@ -241,7 +241,7 @@ class ProfileServiceTest {
     void filtersOnlyActiveWhenRequested() {
         java.time.LocalDateTime since = java.time.LocalDateTime.of(2026, 9, 30, 12, 0);
         when(activityLookup.activeSince()).thenReturn(since);
-        when(profileRepository.findAllActiveSince(since)).thenReturn(
+        when(profileRepository.findVisibleParticipantsActiveSince(since)).thenReturn(
                 List.of(profileWith(2L, "b", "소프트웨어공학과", "ENFP", "영화보기"))
         );
 
