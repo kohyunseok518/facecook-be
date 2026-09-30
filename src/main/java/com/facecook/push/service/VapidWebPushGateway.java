@@ -81,13 +81,15 @@ public class VapidWebPushGateway implements WebPushGateway, DisposableBean {
      */
     @Override
     public PushDeliveryResult send(PushSubscription subscription, String payload) throws Exception {
+        // Notification도 구독 공개키를 읽을 때 BC를 사용하므로 먼저 제공자를 등록한다.
+        PushService configuredPushService = pushService();
         Notification notification = new Notification(
                 subscription.getEndpoint(),
                 subscription.getP256dh(),
                 subscription.getAuth(),
                 payload
         );
-        HttpPost request = pushService().preparePost(notification, Encoding.AES128GCM);
+        HttpPost request = configuredPushService.preparePost(notification, Encoding.AES128GCM);
         Future<HttpResponse> pending = httpClient.execute(request, null);
         HttpResponse response;
         try {

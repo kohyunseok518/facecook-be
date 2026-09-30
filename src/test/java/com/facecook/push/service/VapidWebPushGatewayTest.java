@@ -9,11 +9,14 @@ import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.Security;
 import java.time.Duration;
 import java.util.Base64;
@@ -28,24 +31,51 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+// BC는 JVM 전역 상태다. 다른 테스트와 동시에 실행하지 않고 매 테스트 뒤 원래 상태를 복원한다.
+@Isolated
 class VapidWebPushGatewayTest {
 
     private HttpServer pushServer;
     private VapidWebPushGateway gateway;
 
+    private Provider originalProvider;
+    private int originalProviderPosition;
+
+    @BeforeEach
+    void startWithoutRegisteredProvider() {
+        Provider[] providers = Security.getProviders();
+        for (int i = 0; i < providers.length; i++) {
+            if (BouncyCastleProvider.PROVIDER_NAME.equals(providers[i].getName())) {
+                originalProvider = providers[i];
+                originalProviderPosition = i + 1;
+                break;
+            }
+        }
+        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+    }
+
     @AfterEach
     void tearDown() throws Exception {
-        if (gateway != null) {
-            gateway.destroy();
-        }
-        if (pushServer != null) {
-            pushServer.stop(0);
+        try {
+            if (gateway != null) {
+                gateway.destroy();
+            }
+        } finally {
+            try {
+                if (pushServer != null) {
+                    pushServer.stop(0);
+                }
+            } finally {
+                Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+                if (originalProvider != null) {
+                    Security.insertProviderAt(originalProvider, originalProviderPosition);
+                }
+            }
         }
     }
 
     @Test
-    void encryptsPayloadAndCallsPushEndpointWithVapidAuthorization() throws Exception {
-        Security.addProvider(new BouncyCastleProvider());
+    void firstSendWithoutRegisteredProviderEncryptsPayloadAndCallsPushEndpointWithVapidAuthorization() throws Exception {
         KeyPair vapidKeyPair = keyPair();
         KeyPair subscriberKeyPair = keyPair();
         AtomicReference<String> authorization = new AtomicReference<>();
@@ -74,6 +104,7 @@ class VapidWebPushGatewayTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16])
         );
 
+        assertThat(Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)).isNull();
         PushDeliveryResult result = gateway.send(subscription, "{\"title\":\"test\"}");
 
         assertThat(result.statusCode()).isEqualTo(201);
@@ -84,7 +115,6 @@ class VapidWebPushGatewayTest {
 
     @Test
     void givesUpOnUnresponsivePushServerWithinTimeoutAndStaysUsable() throws Exception {
-        Security.addProvider(new BouncyCastleProvider());
         KeyPair vapidKeyPair = keyPair();
         KeyPair subscriberKeyPair = keyPair();
         CountDownLatch releaseSlowResponse = new CountDownLatch(1);
@@ -135,7 +165,7 @@ class VapidWebPushGatewayTest {
     }
 
     private KeyPair keyPair() throws Exception {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("ECDH", BouncyCastleProvider.PROVIDER_NAME);
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("ECDH", new BouncyCastleProvider());
         generator.initialize(ECNamedCurveTable.getParameterSpec("prime256v1"));
         return generator.generateKeyPair();
     }
