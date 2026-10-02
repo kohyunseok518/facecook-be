@@ -35,6 +35,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -144,7 +145,31 @@ class ServiceEndWebTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"  즐거웠어요  \"}"))
                 .andExpect(status().isNoContent());
-        verify(feedbackService).create("  즐거웠어요  ");
+        verify(feedbackService).create(eq("  즐거웠어요  "), anyString());
+    }
+
+    @Test
+    void feedbackLimitUsesLastForwardedForAddressAddedByAlb() throws Exception {
+        // 사용자가 앞에 꾸며 넣은 주소(9.9.9.9)가 아니라 ALB가 맨 뒤에 덧붙인 실제 주소로 센다
+        mockMvc.perform(post("/api/feedback")
+                        .header("X-Forwarded-For", "9.9.9.9, 203.0.113.7")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"좋았어요\"}"))
+                .andExpect(status().isNoContent());
+        verify(feedbackService).create("좋았어요", "203.0.113.7");
+    }
+
+    @Test
+    void feedbackLimitUsesConnectionAddressWithoutForwardedFor() throws Exception {
+        mockMvc.perform(post("/api/feedback")
+                        .with(request -> {
+                            request.setRemoteAddr("198.51.100.4");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"좋았어요\"}"))
+                .andExpect(status().isNoContent());
+        verify(feedbackService).create("좋았어요", "198.51.100.4");
     }
 
     @Test
@@ -154,7 +179,7 @@ class ServiceEndWebTest {
                         .content("{\"content\":\"   \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION"));
-        verify(feedbackService, never()).create(anyString());
+        verify(feedbackService, never()).create(anyString(), anyString());
     }
 
     @Test
@@ -164,7 +189,7 @@ class ServiceEndWebTest {
                         .content("{\"content\":\"" + "가".repeat(1001) + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION"));
-        verify(feedbackService, never()).create(anyString());
+        verify(feedbackService, never()).create(anyString(), anyString());
     }
 
     /** 종료 차단 대상이 되는 일반 API 자리. 로그인이 필요한 경로다. */

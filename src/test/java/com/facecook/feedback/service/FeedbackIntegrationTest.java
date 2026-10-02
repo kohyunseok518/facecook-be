@@ -40,7 +40,7 @@ class FeedbackIntegrationTest extends MySqlIntegrationTestSupport {
     void savesStrippedContentWithKoreanTime() {
         FeedbackService service = new FeedbackService(feedbackRepository, new FeedbackRateLimiter(CLOCK), CLOCK);
 
-        service.create("  재밌었어요 " + tag + "\n");
+        service.create("  재밌었어요 " + tag + "\n", "1.1.1.1");
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
                 "select content, created_at from feedback where content like ?", "%" + tag + "%");

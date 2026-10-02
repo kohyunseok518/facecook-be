@@ -2,6 +2,7 @@ package com.facecook.feedback.controller;
 
 import com.facecook.feedback.dto.CreateFeedbackRequest;
 import com.facecook.feedback.service.FeedbackService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,8 +25,27 @@ public class FeedbackController {
     private final FeedbackService feedbackService;
 
     @PostMapping
-    public ResponseEntity<Void> create(@Valid @RequestBody CreateFeedbackRequest request) {
-        feedbackService.create(request.content());
+    public ResponseEntity<Void> create(
+            @Valid @RequestBody CreateFeedbackRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        feedbackService.create(request.content(), clientAddress(httpRequest));
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 제출 수 제한에 쓰는 접속 주소. ALB 뒤라 {@code getRemoteAddr()}는 ALB 주소다. ALB는 받은 요청의 실제 접속 주소를
+     * {@code X-Forwarded-For} 맨 뒤에 덧붙이므로 마지막 값을 쓴다 — 앞쪽 값은 사용자가 헤더를 직접 넣어 꾸밀 수 있다.
+     * 헤더가 없으면(로컬) 연결 주소를 쓴다.
+     */
+    static String clientAddress(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null) {
+            String last = forwardedFor.substring(forwardedFor.lastIndexOf(',') + 1).strip();
+            if (!last.isEmpty()) {
+                return last;
+            }
+        }
+        return request.getRemoteAddr();
     }
 }
