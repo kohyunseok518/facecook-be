@@ -45,7 +45,10 @@ public enum ErrorCode {
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "신고를 찾을 수 없습니다."),
     REPORT_ALREADY_REVIEWED(HttpStatus.CONFLICT, "이미 처리된 신고입니다."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
-    MISSION_STEP_MISMATCH(HttpStatus.CONFLICT, "확인한 STEP이 이미 처리됐습니다.");
+    MISSION_STEP_MISMATCH(HttpStatus.CONFLICT, "확인한 STEP이 이미 처리됐습니다."),
+    // 401인 이유는 ServiceEndInterceptor 참고 — 이미 열려 있는 옛 화면이 401을 받아야 페이지를 새로 연다.
+    SERVICE_ENDED(HttpStatus.UNAUTHORIZED, "서비스가 종료되었어요. 새로고침해 주세요."),
+    FEEDBACK_BUSY(HttpStatus.TOO_MANY_REQUESTS, "후기가 몰리고 있어요. 잠시 후 다시 보내 주세요.");
 
     private final HttpStatus status;
     private final String message;

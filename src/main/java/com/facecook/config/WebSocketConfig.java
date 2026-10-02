@@ -4,6 +4,9 @@ import com.facecook.chat.websocket.ChatHandshakeHandler;
 import com.facecook.chat.websocket.ChatHandshakeInterceptor;
 import com.facecook.chat.websocket.ChatInboundChannelInterceptor;
 import com.facecook.chat.websocket.ChatStompErrorHandler;
+import com.facecook.common.serviceend.ServiceEndChannelInterceptor;
+import com.facecook.common.serviceend.ServiceEndHandshakeInterceptor;
+import com.facecook.common.serviceend.ServiceEndPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -43,12 +46,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final ChatHandshakeHandler handshakeHandler;
     private final ChatInboundChannelInterceptor inboundChannelInterceptor;
     private final ChatStompErrorHandler errorHandler;
+    private final ServiceEndPolicy serviceEndPolicy;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new))
-                .addInterceptors(handshakeInterceptor)
+                // 서비스 종료 확인이 로그인 확인보다 먼저다(#155) — 종료 뒤에는 로그인 여부와 관계없이 막는다.
+                .addInterceptors(new ServiceEndHandshakeInterceptor(serviceEndPolicy), handshakeInterceptor)
                 .setHandshakeHandler(handshakeHandler);
         registry.setErrorHandler(errorHandler);
     }
@@ -80,6 +85,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         // CONNECT/SUBSCRIBE/SEND마다 세션을 재검증하고, 구독은 허용 목록
         // (StompSubscriptionPolicy), 전송은 채팅 전송 경로만 통과시킨다.
-        registration.interceptors(inboundChannelInterceptor);
+        // 서비스 종료 뒤에는 그 전에 연결해 둔 소켓의 프레임도 여기서 먼저 거절한다(#155).
+        registration.interceptors(new ServiceEndChannelInterceptor(serviceEndPolicy), inboundChannelInterceptor);
     }
 }
