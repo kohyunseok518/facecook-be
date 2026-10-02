@@ -1,6 +1,7 @@
 package com.facecook.push.service;
 
 import com.facecook.chat.redis.ChatPresenceService;
+import com.facecook.common.serviceend.ServiceEndPolicy;
 import com.facecook.push.dto.PushNotificationPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class ParticipantPushNotificationService {
     private final ChatPresenceService chatPresenceService;
     private final PushDeliveryService pushDeliveryService;
     private final PushDeliveryMonitor monitor;
+    private final ServiceEndPolicy serviceEndPolicy;
 
     /**
      * receiverId에게 "콕이 도착했다" 푸시를 보낸다.
@@ -108,7 +110,8 @@ public class ParticipantPushNotificationService {
 
     private void sendIfOffline(Long userId, PushNotificationPayload payload) {
         try {
-            if (chatPresenceService.isConnected(userId)) {
+            // 서비스 종료 뒤에는 보내지 않는다(#155). 알림을 눌러도 종료 화면만 나온다.
+            if (serviceEndPolicy.isEnded() || chatPresenceService.isConnected(userId)) {
                 return;
             }
             pushDeliveryService.sendToUser(userId, payload);

@@ -37,7 +37,9 @@ public class WebConfig implements WebMvcConfigurer {
             "/api/auth/verify-signup",
             "/api/auth/verify-login",
             "/api/auth/login",
-            "/api/auth/logout"
+            "/api/auth/logout",
+            // 서비스 종료 화면의 익명 후기 제출(#155)
+            "/api/feedback"
     };
 
     private final CorsProperties corsProperties;

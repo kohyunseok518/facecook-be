@@ -121,6 +121,11 @@ erDiagram
         varchar auth
         datetime created_at
     }
+    feedback {
+        bigint feedback_id PK
+        varchar content
+        datetime created_at
+    }
 ```
 
 ## 3. 테이블 상세
@@ -233,6 +238,15 @@ erDiagram
 | auth | VARCHAR(255) | NOT NULL | 암호화 키 |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | | | UNIQUE(user_id, endpoint) | 한 사용자가 여러 기기 구독 가능 |
+
+### feedback (V8)
+서비스 종료 화면에서 받는 익명 후기. 다른 테이블과 관계가 없고, 작성자를 알 수 있는 값(user_id·IP)을 두지 않는다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| feedback_id | BIGINT | PK, AUTO_INCREMENT | |
+| content | VARCHAR(1000) | NOT NULL | 앞뒤 공백을 지운 후기 본문 |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 한국 시간 |
 
 ## 4. Flyway 초기 마이그레이션 (V1__init.sql)
 
@@ -403,6 +417,17 @@ ALTER TABLE mission_template
 
 ```sql
 CREATE INDEX idx_cook_sent_at ON cook (sent_at);
+```
+
+`V8__add_feedback.sql`은 서비스 종료 화면의 익명 후기 테이블을 추가한다(facecook-be#155). 로그인 없이
+`POST /api/feedback`으로 저장하고, 조회 API는 없다.
+
+```sql
+CREATE TABLE feedback (
+    feedback_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    content      VARCHAR(1000) NOT NULL,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ## 6. 이번 문서 범위 밖

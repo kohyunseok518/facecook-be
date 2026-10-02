@@ -84,6 +84,11 @@ app:
     send-limit:
       max-concurrent: ${COOK_SEND_MAX_CONCURRENT:4}
       max-wait: ${COOK_SEND_MAX_WAIT:500ms}
+  service-end:
+    # 서비스 종료 시각(facecook-be#155). 시간대를 포함한 ISO 형식(예: 2026-10-03T00:00:00+09:00). 비우면 종료하지 않는다.
+    # 이 시각부터 후기 제출(/api/feedback)을 뺀 모든 API를 401 SERVICE_ENDED로 막고, 채팅 웹소켓과 웹 푸시도 멈춘다.
+    # FE Vercel의 SERVICE_END_AT과 같은 값으로 맞춘다.
+    end-at: ${SERVICE_END_AT:}
   chat:
     open-time: ${CHAT_OPEN_TIME:09:00}
     close-time: ${CHAT_CLOSE_TIME:18:00}

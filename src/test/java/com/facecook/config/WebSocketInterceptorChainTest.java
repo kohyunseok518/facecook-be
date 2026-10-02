@@ -14,6 +14,8 @@ import com.facecook.common.session.SessionAuthenticator;
 import com.facecook.common.session.SessionTokenSigner;
 import com.facecook.common.exception.ApiException;
 import com.facecook.common.exception.ErrorCode;
+import com.facecook.common.serviceend.ServiceEndPolicy;
+import com.facecook.common.serviceend.ServiceEndProperties;
 import com.facecook.common.websocket.StompSubscriptionPolicy;
 import com.facecook.mission.service.MissionAuthorizationService;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,10 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageBuilder;
 
 import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +41,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +55,23 @@ class WebSocketInterceptorChainTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final ChatAuthorizationService chatAuthorizationService = mock(ChatAuthorizationService.class);
     private final MissionAuthorizationService missionAuthorizationService = mock(MissionAuthorizationService.class);
+    private ServiceEndPolicy serviceEndPolicy = new ServiceEndPolicy(new ServiceEndProperties(null), Clock.systemUTC());
+
+    @Test
+    void rejectsSendAfterServiceEndBeforeAuthentication() {
+        serviceEndPolicy = new ServiceEndPolicy(
+                new ServiceEndProperties(OffsetDateTime.parse("2026-10-03T00:00:00+09:00")),
+                Clock.fixed(Instant.parse("2026-10-02T15:00:00Z"), ZoneOffset.UTC));
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setDestination("/app/chat/20/send");
+        accessor.setSessionAttributes(new HashMap<>(Map.of(ChatSessionAttributes.SESSION_TOKEN, "signed-token")));
+        accessor.setLeaveMutable(true);
+
+        assertThatThrownBy(() -> runThroughConfiguredChain(accessor))
+                .isInstanceOfSatisfying(ApiException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SERVICE_ENDED));
+        verify(userRepository, never()).findById(1L);
+    }
 
     @Test
     void authenticatesThenAuthorizesMissionSubscriptionInConfiguredOrder() {
@@ -79,7 +103,8 @@ class WebSocketInterceptorChainTest {
                 mock(ChatHandshakeInterceptor.class),
                 mock(ChatHandshakeHandler.class),
                 chatInterceptor,
-                mock(ChatStompErrorHandler.class)
+                mock(ChatStompErrorHandler.class),
+                serviceEndPolicy
         );
         TestChannelRegistration registration = new TestChannelRegistration();
         config.configureClientInboundChannel(registration);

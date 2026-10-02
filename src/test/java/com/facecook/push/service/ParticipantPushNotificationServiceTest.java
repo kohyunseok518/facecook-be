@@ -1,12 +1,19 @@
 package com.facecook.push.service;
 
 import com.facecook.chat.redis.ChatPresenceService;
+import com.facecook.common.serviceend.ServiceEndPolicy;
+import com.facecook.common.serviceend.ServiceEndProperties;
 import com.facecook.push.dto.PushNotificationPayload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +35,22 @@ class ParticipantPushNotificationServiceTest {
         chatPresenceService = mock(ChatPresenceService.class);
         pushDeliveryService = mock(PushDeliveryService.class);
         monitor = mock(PushDeliveryMonitor.class);
-        notificationService = new ParticipantPushNotificationService(chatPresenceService, pushDeliveryService, monitor);
+        notificationService = new ParticipantPushNotificationService(
+                chatPresenceService, pushDeliveryService, monitor, new ServiceEndPolicy(new ServiceEndProperties(null), Clock.systemUTC()));
+    }
+
+    @Test
+    void doesNotSendPushAfterServiceEnd() {
+        // 종료 시각(한국 시간 10/3 00:00) 1초 뒤
+        ServiceEndPolicy ended = new ServiceEndPolicy(
+                new ServiceEndProperties(OffsetDateTime.parse("2026-10-03T00:00:00+09:00")),
+                Clock.fixed(Instant.parse("2026-10-02T15:00:01Z"), ZoneOffset.UTC));
+        notificationService = new ParticipantPushNotificationService(chatPresenceService, pushDeliveryService, monitor, ended);
+        when(chatPresenceService.isConnected(2L)).thenReturn(false);
+
+        notificationService.cookReceived(2L);
+
+        verify(pushDeliveryService, never()).sendToUser(any(), any());
     }
 
     @Test
