@@ -14,7 +14,7 @@
 </div>
 
 > [!NOTE]
-> 행사가 끝나 지금은 종료 인사와 후기 화면만 열려 있습니다. 아래 화면은 같은 코드를 로컬에서 가상의 참가자로 띄워 찍었습니다.
+> 행사가 끝나 지금은 종료 인사와 후기 화면만 열려 있습니다. 아래 화면은 같은 코드를 로컬에 띄우고, 실제 운영과 같은 규모(참가자 445명·콕 1,885건·매칭 463건)의 가상 참가자를 넣어 찍었습니다.
 
 ---
 
@@ -43,7 +43,12 @@
 | <img src="img/screen-match.png" width="200" alt="서로 콕을 보내 매칭이 성사된 화면"> | <img src="img/screen-chat.png" width="200" alt="상단에 현재 랜덤 미션이 보이는 실시간 채팅 화면"> | <img src="img/screen-ended.png" width="200" alt="서비스 종료 인사와 익명 후기 입력 화면"> |
 |                    서로 콕하면 매칭되고<br>채팅방이 열려요                     |                       실시간으로 대화하며<br>3단계 랜덤 미션을 풀어요                       |                  행사가 끝나면 모든 화면이<br>후기 화면으로 바뀌어요                  |
 
-운영진은 관리자 화면에서 통계·신고·미션 완료를 처리하고, 총학생회 계정은 전체 참가자와 채팅방을 조회합니다.
+운영진은 관리자 화면에서 현황을 보고, 신고와 미션 완료를 처리합니다.
+
+|                                              미션                                              |                                                 운영진 통계                                                 |
+| :--------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------: |
+| <img src="img/screen-mission.png" width="200" alt="3단계 랜덤 미션의 현재 단계와 잠긴 다음 단계"> | <img src="img/screen-admin.png" width="200" alt="총 가입자 445, 오늘 활성 327, 보낸 콕 1885, 성사 매칭 463, 미션 완주 5"> |
+|                          부스에서 확인받으면<br>다음 단계가 열려요                          |                         가입·콕·매칭·미션·신고를<br>한 화면에서 봐요                         |
 
 ## 📊 3일 동안 실제로 운영했습니다
 
@@ -98,7 +103,7 @@
 | 저장소 | 내용 |
 | --- | --- |
 | [**facecook-be**](https://github.com/seoil-power-rangers/facecook-be) | Spring Boot 백엔드. REST API, STOMP 채팅, 웹 푸시, 배포 파이프라인 |
-| [**facecook-fe**](https://github.com/seoil-power-rangers/facecook-fe) | Next.js 프론트엔드(PWA). 참가자·관리자·총학생회 화면 |
+| [**facecook-fe**](https://github.com/seoil-power-rangers/facecook-fe) | Next.js 프론트엔드(PWA). 참가자·운영진 화면 |
 
 ## 🛠️ 기술 스택
 
@@ -115,7 +120,7 @@
 | (이름) | (이름) | (이름) | (이름) |
 | :---: | :---: | :---: | :---: |
 | [@kohyunseok518](https://github.com/kohyunseok518) | [@J2MIN4452](https://github.com/J2MIN4452) | [@Heejeong22](https://github.com/Heejeong22) | [@jongwon-810](https://github.com/jongwon-810) |
-| ✨ Team Leader · BE Lead<br>백엔드 설계, AWS 배포·운영 | FE Lead<br>콕·채팅 화면, 요청 구조 | BE · FE<br>랜덤 미션, 총학생회 조회 | FE<br>가입·로그인·관리자 화면 |
+| ✨ Team Leader · BE Lead<br>백엔드 설계, AWS 배포·운영 | FE Lead<br>콕·채팅 화면, 요청 구조 | BE · FE<br>랜덤 미션, 관리자 화면 연동 | FE<br>가입·로그인·관리자 화면 |
 
 ---
 

@@ -95,7 +95,6 @@ src/main/java/com/facecook/
 ├── report/        신고·정지
 ├── push/          웹 푸시 구독·발송(전용 스레드, 앱이 꺼진 사람에게만)
 ├── admin/         운영진 통계
-├── superaccount/  총학생회 조회 계정
 ├── feedback/      서비스 종료 후 익명 후기
 ├── common/        예외·세션·로깅·시간(KST)·서비스 종료 차단
 └── config/        WebSocket·Redis·CORS·비동기 설정
